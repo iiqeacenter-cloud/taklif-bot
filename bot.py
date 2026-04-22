@@ -1,4 +1,5 @@
 import os
+import html
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -22,14 +23,6 @@ GROUP_ID = -1003982155612
 
 CHOOSE_TYPE, CHOOSE_BRANCH, CHOOSE_ACTION, WRITE_MESSAGE = range(4)
 user_messages = {}
-
-def safe(text):
-    """Markdown maxsus belgilarini tozalash"""
-    if not text:
-        return ""
-    for ch in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
-        text = text.replace(ch, '')
-    return text
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
@@ -112,15 +105,14 @@ async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    text = update.message.text  # xom matn, parse_mode ishlatmaymiz
+    # html.escape — maxsus belgilardan himoya
+    text     = html.escape(update.message.text or "")
+    branch   = html.escape(context.user_data.get("branch", "Noma'lum"))
+    action   = html.escape(context.user_data.get("action", "Noma'lum"))
+    inst_type = html.escape(context.user_data.get("type",  "Noma'lum"))
+    username = html.escape(f"@{user.username}" if user.username else "Yoq")
+    fullname = html.escape(f"{user.first_name or ''} {user.last_name or ''}".strip())
 
-    branch    = context.user_data.get("branch", "Noma'lum")
-    action    = context.user_data.get("action", "Noma'lum")
-    inst_type = context.user_data.get("type",   "Noma'lum")
-    username  = f"@{user.username}" if user.username else "Yoq"
-    fullname  = f"{user.first_name or ''} {user.last_name or ''}".strip()
-
-    # parse_mode YOQ — faqat oddiy matn
     group_message = (
         f"📩 Yangi {action}\n\n"
         f"Tur: {inst_type}\n"
@@ -138,7 +130,7 @@ async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         sent = await context.bot.send_message(
             chat_id=GROUP_ID,
             text=group_message,
-            # parse_mode YOQ - xato bermaydi
+            parse_mode="HTML",
         )
         user_messages[sent.message_id] = user.id
         logger.info(f"Guruhga yuborildi! message_id={sent.message_id}")
