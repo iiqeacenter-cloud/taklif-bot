@@ -1,4 +1,5 @@
 import os
+import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder,
@@ -10,70 +11,73 @@ from telegram.ext import (
     ConversationHandler,
 )
 
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 TOKEN = os.getenv("TOKEN", "8642369502:AAGw-RQbZGIdSJ6WmfBKNGOrF-jcLnGJZqU")
 GROUP_ID = -5191459591
 
-# States
 CHOOSE_TYPE, CHOOSE_BRANCH, CHOOSE_ACTION, WRITE_MESSAGE = range(4)
-
-# Guruhdagi message_id → user_id map
 user_messages = {}
 
-# ─── /start ───────────────────────────────────────────────────────────────────
+def safe(text):
+    """Markdown maxsus belgilarini tozalash"""
+    if not text:
+        return ""
+    for ch in ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']:
+        text = text.replace(ch, '')
+    return text
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [
         [
             InlineKeyboardButton("🏫 Maktab", callback_data="type_maktab"),
-            InlineKeyboardButton("🏡 Bog'cha", callback_data="type_bogcha"),
+            InlineKeyboardButton("🏡 Bogcha", callback_data="type_bogcha"),
         ]
     ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
     await update.message.reply_text(
-        "👋 Assalomu alaykum!\n\n"
-        "🏫 *MUDARRIR Xalqaro Maktabi*\n"
-        "📩 Shikoyat va Taklif Botiga xush kelibsiz!\n\n"
-        "Iltimos, murojaat turini tanlang:",
-        parse_mode="Markdown",
-        reply_markup=reply_markup,
+        "Assalomu alaykum!\n\n"
+        "MUDARRIR Xalqaro Maktabi\n"
+        "Shikoyat va Taklif Botiga xush kelibsiz!\n\n"
+        "Murojaat turini tanlang:",
+        reply_markup=InlineKeyboardMarkup(keyboard),
     )
     return CHOOSE_TYPE
 
-
-# ─── Maktab / Bog'cha tanlash ─────────────────────────────────────────────────
 async def choose_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    data = query.data  # type_maktab | type_bogcha
-    context.user_data["type"] = "Maktab" if data == "type_maktab" else "Bog'cha"
+    data = query.data
+    context.user_data["type"] = "Maktab" if data == "type_maktab" else "Bogcha"
 
     if data == "type_maktab":
         keyboard = [
             [InlineKeyboardButton("🏫 Sergeli Maktab",  callback_data="branch_sergeli_maktab")],
-            [InlineKeyboardButton("🏫 Qo'yliq Maktab",  callback_data="branch_qoyliq_maktab")],
-            [InlineKeyboardButton("🏫 Qa'ni Maktab",    callback_data="branch_qani_maktab")],
+            [InlineKeyboardButton("🏫 Qoyliq Maktab",   callback_data="branch_qoyliq_maktab")],
+            [InlineKeyboardButton("🏫 Qani Maktab",     callback_data="branch_qani_maktab")],
         ]
         text = "Qaysi maktabni tanlaysiz?"
     else:
         keyboard = [
-            [InlineKeyboardButton("🏡 Sergeli Bog'cha", callback_data="branch_sergeli_bogcha")],
-            [InlineKeyboardButton("🏡 Qo'yliq Bog'cha", callback_data="branch_qoyliq_bogcha")],
-            [InlineKeyboardButton("🏡 Qa'ni Bog'cha",   callback_data="branch_qani_bogcha")],
+            [InlineKeyboardButton("🏡 Sergeli Bogcha",  callback_data="branch_sergeli_bogcha")],
+            [InlineKeyboardButton("🏡 Qoyliq Bogcha",   callback_data="branch_qoyliq_bogcha")],
+            [InlineKeyboardButton("🏡 Qani Bogcha",     callback_data="branch_qani_bogcha")],
         ]
-        text = "Qaysi bog'chani tanlaysiz?"
+        text = "Qaysi bogchani tanlaysiz?"
 
     await query.edit_message_text(text=text, reply_markup=InlineKeyboardMarkup(keyboard))
     return CHOOSE_BRANCH
 
-
-# ─── Filial tanlash ───────────────────────────────────────────────────────────
 BRANCH_NAMES = {
-    "branch_sergeli_maktab":  "Sergeli Maktab",
-    "branch_qoyliq_maktab":   "Qo'yliq Maktab",
-    "branch_qani_maktab":     "Qa'ni Maktab",
-    "branch_sergeli_bogcha":  "Sergeli Bog'cha",
-    "branch_qoyliq_bogcha":   "Qo'yliq Bog'cha",
-    "branch_qani_bogcha":     "Qa'ni Bog'cha",
+    "branch_sergeli_maktab": "Sergeli Maktab",
+    "branch_qoyliq_maktab":  "Qoyliq Maktab",
+    "branch_qani_maktab":    "Qani Maktab",
+    "branch_sergeli_bogcha": "Sergeli Bogcha",
+    "branch_qoyliq_bogcha":  "Qoyliq Bogcha",
+    "branch_qani_bogcha":    "Qani Bogcha",
 }
 
 async def choose_branch(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -88,14 +92,11 @@ async def choose_branch(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
     ]
     await query.edit_message_text(
-        text=f"✅ *{context.user_data['branch']}* tanlandi.\n\nMurojaat turini tanlang:",
-        parse_mode="Markdown",
+        text=f"{context.user_data['branch']} tanlandi.\n\nMurojaat turini tanlang:",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
     return CHOOSE_ACTION
 
-
-# ─── Shikoyat / Taklif tanlash ────────────────────────────────────────────────
 async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -104,65 +105,62 @@ async def choose_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     emoji = "📢" if action == "Shikoyat" else "💡"
     await query.edit_message_text(
-        text=f"{emoji} *{action}* tanlandi.\n\n"
-             f"Iltimos, *{context.user_data['branch']}* bo'yicha {action.lower()}ingizni yozing:",
-        parse_mode="Markdown",
+        text=f"{emoji} {action} tanlandi.\n\n"
+             f"{context.user_data['branch']} boyicha {action.lower()}ingizni yozing:",
     )
     return WRITE_MESSAGE
 
-
-# ─── Xabarni qabul qilish ─────────────────────────────────────────────────────
 async def receive_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    text = update.message.text
+    text = update.message.text  # xom matn, parse_mode ishlatmaymiz
 
-    branch = context.user_data.get("branch", "Noma'lum")
-    action = context.user_data.get("action", "Noma'lum")
-    inst_type = context.user_data.get("type", "Noma'lum")
+    branch    = context.user_data.get("branch", "Noma'lum")
+    action    = context.user_data.get("action", "Noma'lum")
+    inst_type = context.user_data.get("type",   "Noma'lum")
+    username  = f"@{user.username}" if user.username else "Yoq"
+    fullname  = f"{user.first_name or ''} {user.last_name or ''}".strip()
 
-    username = f"@{user.username}" if user.username else "Yo'q"
-
+    # parse_mode YOQ — faqat oddiy matn
     group_message = (
-        f"📩 *Yangi {action}*\n\n"
-        f"🏫 Tur: {inst_type}\n"
-        f"📍 Filial: {branch}\n"
-        f"📂 Murojaat turi: {action}\n\n"
-        f"👤 Ism: {user.first_name} {user.last_name or ''}\n"
-        f"🆔 ID: `{user.id}`\n"
-        f"👤 Username: {username}\n\n"
-        f"📝 Matn:\n{text}"
+        f"📩 Yangi {action}\n\n"
+        f"Tur: {inst_type}\n"
+        f"Filial: {branch}\n"
+        f"Murojaat: {action}\n\n"
+        f"Ism: {fullname}\n"
+        f"ID: {user.id}\n"
+        f"Username: {username}\n\n"
+        f"Matn:\n{text}"
     )
 
-    sent = await context.bot.send_message(
-        chat_id=GROUP_ID,
-        text=group_message,
-        parse_mode="Markdown",
-    )
-    user_messages[sent.message_id] = user.id
+    logger.info(f"Guruhga yuborish: GROUP_ID={GROUP_ID}")
 
-    await update.message.reply_text(
-        "✅ *Arizangiz qabul qilindi!*\n\n"
-        "⏳ Tez orada ko'rib chiqiladi.\n\n"
-        "Yana murojaat qilmoqchi bo'lsangiz /start bosing.",
-        parse_mode="Markdown",
-    )
+    try:
+        sent = await context.bot.send_message(
+            chat_id=GROUP_ID,
+            text=group_message,
+            # parse_mode YOQ - xato bermaydi
+        )
+        user_messages[sent.message_id] = user.id
+        logger.info(f"Guruhga yuborildi! message_id={sent.message_id}")
 
-    # Reset state
+        await update.message.reply_text(
+            "✅ Arizangiz qabul qilindi!\n\n"
+            "Tez orada korib chiqiladi.\n\n"
+            "Yana murojaat uchun /start bosing."
+        )
+
+    except Exception as e:
+        logger.error(f"XATO guruhga yuborishda: {e}")
+        await update.message.reply_text(
+            f"Xatolik yuz berdi: {e}\n\nAdmin bilan boglanin."
+        )
+
     context.user_data.clear()
     return ConversationHandler.END
 
-
-# ─── Keyingi xabar (conversation tugagandan keyin) ────────────────────────────
 async def handle_extra_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Conversation tugagandan keyin user yana xabar yozsa"""
-    await update.message.reply_text(
-        "✅ *Murojaatingiz qabul qilindi!*\n\n"
-        "Yangi murojaat uchun /start bosing.",
-        parse_mode="Markdown",
-    )
+    await update.message.reply_text("Yangi murojaat uchun /start bosing.")
 
-
-# ─── Admin guruhda reply ──────────────────────────────────────────────────────
 async def handle_group_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.effective_chat or update.effective_chat.id != GROUP_ID:
         return
@@ -178,22 +176,23 @@ async def handle_group_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if not reply_text.strip():
         return
 
-    admin = update.message.from_user
-    await context.bot.send_message(
-        chat_id=user_id,
-        text=f"📬 *Admindan javob:*\n\n{reply_text}",
-        parse_mode="Markdown",
-    )
+    try:
+        await context.bot.send_message(
+            chat_id=user_id,
+            text=f"Admindan javob:\n\n{reply_text}",
+        )
+        logger.info(f"User {user_id} ga javob yuborildi.")
+    except Exception as e:
+        logger.error(f"Userga javob yuborishda xato: {e}")
 
+async def getid(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(f"Bu chatning ID si: {update.effective_chat.id}")
 
-# ─── Cancel ───────────────────────────────────────────────────────────────────
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
-    await update.message.reply_text("❌ Bekor qilindi. Qaytadan boshlash uchun /start bosing.")
+    await update.message.reply_text("Bekor qilindi. /start bosing.")
     return ConversationHandler.END
 
-
-# ─── App ──────────────────────────────────────────────────────────────────────
 app = ApplicationBuilder().token(TOKEN).build()
 
 conv_handler = ConversationHandler(
@@ -205,10 +204,13 @@ conv_handler = ConversationHandler(
         WRITE_MESSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_message)],
     },
     fallbacks=[CommandHandler("cancel", cancel)],
+    allow_reentry=True,
 )
 
 app.add_handler(conv_handler)
+app.add_handler(CommandHandler("getid", getid))
 app.add_handler(MessageHandler(filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND, handle_extra_message))
 app.add_handler(MessageHandler(filters.ChatType.GROUPS & filters.TEXT, handle_group_reply))
 
-app.run_polling()
+logger.info(f"Bot ishga tushdi. GROUP_ID={GROUP_ID}")
+app.run_polling(drop_pending_updates=True)
