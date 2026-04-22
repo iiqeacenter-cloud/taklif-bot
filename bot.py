@@ -18,7 +18,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TOKEN", "8642369502:AAGw-RQbZGIdSJ6WmfBKNGOrF-jcLnGJZqU")
-GROUP_ID = -5191459591
+GROUP_ID = -1005191459591
 
 CHOOSE_TYPE, CHOOSE_BRANCH, CHOOSE_ACTION, WRITE_MESSAGE = range(4)
 user_messages = {}
